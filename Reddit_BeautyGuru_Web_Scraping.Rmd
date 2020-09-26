@@ -1,0 +1,159 @@
+---
+title: "Untitled"
+author: "Sonia Nikiema"
+date: "9/24/2020"
+output: html_document
+---
+
+
+```{r}
+library(rvest)
+library(tidyverse)
+library(sentimentr)
+library(tidytext)
+library(scales)
+library(miniUI)
+library(shiny)
+library(shinyFiles)
+```
+
+```{r}
+keywords <- read_html("https://www.reddit.com/r/BeautyGuruChatter/comments/iywhpy/why_are_influencers_silent_about_hourglass/") 
+
+
+```
+
+# # Let's scrape the title
+
+```{r}
+Title <-keywords %>%
+  html_node("title") %>%
+  html_text()  
+```
+
+# Let's scrape the most comments on the title
+
+```{r}
+hourglass_comments <- keywords %>%
+  html_nodes("p._1qeIAgB0cPwnLhDF9XSiJM") %>%
+  html_text()
+
+```
+
+# Let's scrape the time and URL of all latest pages published on Reddit's r/BeautyGuruChatter
+
+```{r}
+reddit_beauty_guru <- read_html("https://www.reddit.com/r/BeautyGuruChatter/")
+
+Comments_time <- reddit_beauty_guru %>%
+  html_nodes("a._3jOxDPIQ0KaOWpzvSQo-1s") %>%
+  html_text()
+Comments_time
+  
+```
+
+```{r}
+urls <- reddit_beauty_guru %>%
+  html_nodes("a._3jOxDPIQ0KaOWpzvSQo-1s") %>%
+  html_attr("href")
+urls
+
+
+```
+
+# Create a dataframe containing the URLs of the Reddit BeautyGuruChatter pages and their published times
+
+```{r}
+hourglass_page_times <- data.frame(commentpage = urls, time = Comments_time)
+
+dim(hourglass_page_times)
+```
+
+# Loop through urls, grab the main head and paragraph text of comments, 
+# store in their own vectors, and create a dataframe to get it ready for analysis/modeling
+
+
+```{r}
+titles <- c()
+comments <- c()
+for(i in hourglass_page_times$commentpage){ 
+  
+  hourglass_page_times <- read_html(i)
+  body <- hourglass_page_times %>%
+    html_nodes("p._1qeIAgB0cPwnLhDF9XSiJM") %>%
+    html_text()
+  comments = append(comments, body)
+  
+  hourglass_page_times <- read_html(i)
+  title <- hourglass_page_times %>%
+    html_node("title") %>%
+    html_text()
+  titles = append(titles, rep(title,each=length(body)))
+}
+
+hourglass_comments_times <- data.frame(Headline=titles, Comments=comments)
+dim(hourglass_comments_times)
+head(hourglass_comments_times$Comments)
+
+```
+
+
+```{r}
+#hourglass_comments_times <- hourglass_comments_times[grep("hours ago", hourglass_comments_times$time),]
+
+#dim(hourglass_comments_times)
+```
+
+# Let's make a small dataset for only hourglass
+
+```{r}
+hourglass_sentiments_data <- data.frame(Headline = Title, Comments=hourglass_comments)
+
+dim(hourglass_sentiments_data)
+
+as.character(hourglass_sentiments_data$Comments)
+
+```
+
+# Score the overall sentiment of each comment
+# This library scores sentiment by taking into account the whole sentence
+# It takes into account surrounding words of a target word such as 'not happy'
+# which cancels out positive sentiment
+# A negative value means sentiment is more negative than positive
+# A positive values means the sentiment is more positive than negative
+#install.packages('sentimentr')
+
+
+```{r}
+sentiment_score <- sentiment(hourglass_sentiments_data$Comments)
+
+## check average sentiment
+
+average_sentiment <-sum(sentiment_score$sentiment)/length(sentiment_score$sentiment)
+average_sentiment
+
+```
+
+# Let's make a quick plot
+
+```{r}
+
+Sentiment_graph <- sentiment_score %>%
+  count(sentiment, sort=TRUE)%>%
+  ggplot(aes(sentiment, n)) +
+  geom_line(size = 1, color = "#85144b")+
+    labs(x="Sentiments",
+       y= "",
+       title= "Hourglass Cosmetic sentiments analysis - 09/25/2020 Web scraping",
+       subtitle = "Overall average sentiment is -0.005885364 -pretty close to Neutral",
+        caption ="Source:reddit.com/r/BeautyGuruChatter/why_are_influencers_silent_about_hourglass. 
+       Data scraped and visualized by Sonia Nikiema")+
+  theme_bw()
+Sentiment_graph
+```
+
+```{r}
+ggsave("saved_graph.png", Sentiment_graph)
+```
+
+
